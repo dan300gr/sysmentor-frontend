@@ -1,5 +1,4 @@
-// Función auxiliar para crear un cliente HTTP para el chatbot
-import axios from "axios"
+import axios, { type AxiosError } from "axios"
 import { getAuthToken } from "@/lib/auth"
 
 // Importar las funciones de la cola de mensajes
@@ -7,6 +6,32 @@ import { enqueueMessage, processMessageQueue, type QueueProcessResult } from "@/
 
 // URL base de la API
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-sysmentor.onrender.com"
+
+// Interfaces para las respuestas de la API
+export interface ChatbotResponse {
+  respuesta: string
+  session_id: string
+  fecha?: string
+}
+
+export interface ConversationResponse {
+  mensajes: MessageResponse[]
+}
+
+export interface MessageResponse {
+  id: number
+  matricula?: string
+  mensaje?: string
+  respuesta?: string
+  fecha: string
+}
+
+export interface SessionResponse {
+  session_id: string
+  titulo?: string
+  resumen?: string
+  fecha_ultima_actividad: string
+}
 
 // Bandera para controlar si debemos seguir intentando cargar conversaciones
 let shouldTryLoadingConversations = true
@@ -34,12 +59,16 @@ export function createChatbotClient() {
 }
 
 // Función para verificar si hay conexión a internet
-function isOnline() {
-  return navigator.onLine
+function isOnline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine
 }
 
 // Modificar la función sendChatbotMessage para usar la cola de mensajes
-export async function sendChatbotMessage(message: string, sessionId: string, matricula?: string | null) {
+export async function sendChatbotMessage(
+  message: string,
+  sessionId: string,
+  matricula?: string | null,
+): Promise<ChatbotResponse> {
   // Si no hay conexión, encolar el mensaje y devolver una respuesta simulada
   if (!isOnline()) {
     const messageId = enqueueMessage(sessionId, message, matricula || null)
@@ -54,7 +83,7 @@ export async function sendChatbotMessage(message: string, sessionId: string, mat
   }
 
   let retries = 3
-  let lastError = null
+  let lastError: Error | null = null
 
   while (retries > 0) {
     try {
@@ -69,7 +98,7 @@ export async function sendChatbotMessage(message: string, sessionId: string, mat
 
       console.log("Enviando mensaje al chatbot:", requestData)
 
-      const response = await client.post("/api/mensajes/mensajes-chatbot/conversar", requestData)
+      const response = await client.post<ChatbotResponse>("/api/mensajes/mensajes-chatbot/conversar", requestData)
       console.log("Respuesta recibida:", response.data)
 
       // Procesar la cola de mensajes pendientes si este mensaje tuvo éxito
@@ -83,8 +112,9 @@ export async function sendChatbotMessage(message: string, sessionId: string, mat
 
       return response.data
     } catch (error) {
-      console.error(`Error al enviar mensaje al chatbot (intentos restantes: ${retries - 1}):`, error)
-      lastError = error
+      const axiosError = error as AxiosError
+      console.error(`Error al enviar mensaje al chatbot (intentos restantes: ${retries - 1}):`, axiosError)
+      lastError = new Error(axiosError.message || "Error desconocido")
       retries--
 
       // Si aún quedan intentos, esperar antes de reintentar
@@ -110,21 +140,21 @@ export async function sendChatbotMessage(message: string, sessionId: string, mat
 }
 
 // Modificar la función getUserConversations para que no intente conectarse al servidor
-export async function getUserConversations(matricula: string) {
+export async function getUserConversations(matricula: string): Promise<SessionResponse[]> {
   console.log("Función de obtener conversaciones desactivada")
   // Simplemente devolver un array vacío sin intentar conectarse al servidor
   return []
 }
 
 // Modificar la función getConversationMessages para que no intente conectarse al servidor
-export async function getConversationMessages(sessionId: string) {
+export async function getConversationMessages(sessionId: string): Promise<ConversationResponse> {
   console.log("Función de obtener mensajes de conversación desactivada")
   // Devolver un objeto con un array de mensajes vacío
   return { mensajes: [] }
 }
 
 // Función para reiniciar los intentos de carga de conversaciones
-export function resetConversationLoadingAttempts() {
+export function resetConversationLoadingAttempts(): void {
   shouldTryLoadingConversations = true
   console.log("Reiniciando intentos de carga de conversaciones")
 }

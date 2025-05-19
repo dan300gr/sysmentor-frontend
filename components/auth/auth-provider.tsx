@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { getCurrentUser, isAuthenticated, type Usuario } from "@/lib/auth"
 
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const checkAuth = () => {
+  const checkAuth = useCallback(() => {
     try {
       const loggedIn = isAuthenticated()
       if (loggedIn) {
@@ -48,12 +48,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [pathname, router])
 
   // Función para refrescar el estado de autenticación manualmente
-  const refreshAuthState = () => {
+  const refreshAuthState = useCallback(() => {
     checkAuth()
-  }
+  }, [checkAuth])
 
   useEffect(() => {
     checkAuth()
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener("storage", handleStorageChange)
     }
-  }, [pathname, router])
+  }, [checkAuth])
 
   return (
     <AuthContext.Provider value={{ user, isLoggedIn: !!user, loading, refreshAuthState }}>

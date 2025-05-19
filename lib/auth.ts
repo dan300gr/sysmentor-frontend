@@ -1,4 +1,4 @@
-import axios from "axios"
+import axios, { type AxiosError } from "axios"
 
 // URL base de la API
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-sysmentor.onrender.com"
@@ -29,6 +29,12 @@ interface LoginResponse {
     rol: string
     fecha_registro: string
   }
+}
+
+// Interfaz para errores de la API
+interface ApiErrorResponse {
+  detail?: string | string[]
+  [key: string]: unknown
 }
 
 // Interfaz para el usuario normalizado que usaremos en la aplicación
@@ -98,9 +104,12 @@ export async function loginUser(matricula: string, contrasena: string): Promise<
     }
   } catch (error) {
     console.error("Error en loginUser:", error)
-    if (axios.isAxiosError(error) && error.response) {
-      console.error("Detalles del error:", error.response.data)
-      throw new Error(`Error al iniciar sesión: ${JSON.stringify(error.response.data)}`)
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<ApiErrorResponse>
+      if (axiosError.response) {
+        console.error("Detalles del error:", axiosError.response.data)
+        throw new Error(`Error al iniciar sesión: ${JSON.stringify(axiosError.response.data)}`)
+      }
     }
     throw new Error("Error al iniciar sesión")
   }

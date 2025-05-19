@@ -20,6 +20,8 @@ const QUEUE_STORAGE_KEY = "messageQueue"
 
 // Obtener la cola de mensajes
 export function getMessageQueue(): QueuedMessage[] {
+  if (typeof window === "undefined") return []
+
   const storedQueue = localStorage.getItem(QUEUE_STORAGE_KEY)
   if (!storedQueue) {
     return []
@@ -42,6 +44,8 @@ export function getMessageQueue(): QueuedMessage[] {
 
 // Guardar la cola de mensajes
 function saveMessageQueue(queue: QueuedMessage[]): void {
+  if (typeof window === "undefined") return
+
   localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
 }
 
@@ -93,9 +97,13 @@ export function updateMessageAttempts(messageId: string): void {
 
 // Procesar la cola de mensajes
 export async function processMessageQueue(
-  sendFunction: (sessionId: string, message: string, matricula: string | null) => Promise<any>,
+  sendFunction: (sessionId: string, message: string, matricula: string | null) => Promise<unknown>,
 ): Promise<QueueProcessResult> {
   try {
+    if (typeof window === "undefined") {
+      return { success: 0, failed: 0, remaining: 0 }
+    }
+
     // Obtener la cola actual
     const storedQueue = localStorage.getItem(QUEUE_STORAGE_KEY)
     if (!storedQueue) {
@@ -168,6 +176,8 @@ export async function processMessageQueue(
 // Función para obtener el número de mensajes en cola
 export function getQueuedMessageCount(): number {
   try {
+    if (typeof window === "undefined") return 0
+
     const storedQueue = localStorage.getItem(QUEUE_STORAGE_KEY)
     if (!storedQueue) {
       return 0
@@ -183,5 +193,7 @@ export function getQueuedMessageCount(): number {
 
 // Función para limpiar la cola de mensajes
 export function clearMessageQueue(): void {
+  if (typeof window === "undefined") return
+
   localStorage.removeItem(QUEUE_STORAGE_KEY)
 }

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Sparkles, MessageSquare, RefreshCw, Clock, Zap, BrainCircuit } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,28 @@ interface ChatSession {
   timestamp: Date
 }
 
+// Interfaz para la respuesta de la API de sesiones
+interface SessionResponse {
+  session_id: string
+  titulo?: string
+  resumen?: string
+  fecha_ultima_actividad: string
+}
+
+// Interfaz para la respuesta de la API de mensajes
+interface MessageResponse {
+  id: number
+  matricula?: string
+  mensaje?: string
+  respuesta?: string
+  fecha: string
+}
+
+// Interfaz para la respuesta completa de mensajes
+interface ConversationResponse {
+  mensajes: MessageResponse[]
+}
+
 export default function ChatbotContent() {
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -47,6 +69,36 @@ export default function ChatbotContent() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const router = useRouter()
   const { toast } = useToast()
+
+  // Función para cargar sesiones previas
+  const loadSessions = useCallback(async () => {
+    try {
+      setLoading(true)
+      const user = getCurrentUser()
+      if (user) {
+        const sessionsData = await getUserConversations(user.matricula)
+
+        if (sessionsData && Array.isArray(sessionsData)) {
+          const formattedSessions = sessionsData.map((session: SessionResponse) => ({
+            id: session.session_id,
+            title: session.titulo || "Conversación sin título",
+            lastMessage: session.resumen || "Sin mensajes",
+            timestamp: new Date(session.fecha_ultima_actividad),
+          }))
+          setSessions(formattedSessions)
+        }
+      }
+    } catch (error) {
+      console.error("Error al cargar sesiones:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar las conversaciones previas.",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
 
   // Verificar autenticación al cargar el componente
   useEffect(() => {
@@ -67,7 +119,7 @@ export default function ChatbotContent() {
 
     // Cargar sesiones previas
     loadSessions()
-  }, [router, toast, sessionId])
+  }, [router, toast, sessionId, loadSessions])
 
   // Efecto para hacer scroll al último mensaje
   useEffect(() => {
@@ -117,36 +169,6 @@ export default function ChatbotContent() {
     return () => clearInterval(interval)
   }, [messages])
 
-  // Función para cargar sesiones previas
-  const loadSessions = async () => {
-    try {
-      setLoading(true)
-      const user = getCurrentUser()
-      if (user) {
-        const sessionsData = await getUserConversations(user.matricula)
-
-        if (sessionsData && Array.isArray(sessionsData)) {
-          const formattedSessions = sessionsData.map((session: any) => ({
-            id: session.session_id,
-            title: session.titulo || "Conversación sin título",
-            lastMessage: session.resumen || "Sin mensajes",
-            timestamp: new Date(session.fecha_ultima_actividad),
-          }))
-          setSessions(formattedSessions)
-        }
-      }
-    } catch (error) {
-      console.error("Error al cargar sesiones:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron cargar las conversaciones previas.",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Función para cargar mensajes de una sesión
   const loadSessionMessages = async (sessionId: string) => {
     try {
@@ -154,11 +176,11 @@ export default function ChatbotContent() {
       const response = await getConversationMessages(sessionId)
 
       if (response && response.mensajes) {
-        const loadedMessages = response.mensajes.map((msg: any) => ({
+        const loadedMessages = response.mensajes.map((msg: MessageResponse) => ({
           id: `msg-${msg.id}`,
           role: msg.matricula ? ("user" as const) : ("assistant" as const),
-          content: msg.matricula ? msg.mensaje : msg.respuesta,
-          displayContent: msg.matricula ? msg.mensaje : msg.respuesta, // Para mensajes cargados, mostrar todo de inmediato
+          content: msg.matricula ? msg.mensaje || "" : msg.respuesta || "",
+          displayContent: msg.matricula ? msg.mensaje || "" : msg.respuesta || "", // Para mensajes cargados, mostrar todo de inmediato
           timestamp: new Date(msg.fecha),
         }))
 
@@ -299,7 +321,7 @@ export default function ChatbotContent() {
     if (user) {
       loadSessions()
     }
-  }, [router, toast, sessionId])
+  }, [sessionId, loadSessions])
 
   return (
     <div className="max-w-5xl mx-auto">

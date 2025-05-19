@@ -29,8 +29,9 @@ export default function LoginPage() {
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              "SysMentor ha transformado mi experiencia de aprendizaje en Ingeniería en Sistemas. Los recursos
-              interactivos y el chatbot me han ayudado a comprender conceptos complejos de manera sencilla."
+              {
+                '"SysMentor ha transformado mi experiencia de aprendizaje en Ingeniería en Sistemas. Los recursos interactivos y el chatbot me han ayudado a comprender conceptos complejos de manera sencilla."'
+              }
             </p>
             <footer className="text-sm">Estudiante de Ingeniería en Sistemas</footer>
           </blockquote>

@@ -29,8 +29,9 @@ export default function RegisterPage() {
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              "Únete a SysMentor y forma parte de una comunidad de estudiantes comprometidos con su desarrollo académico
-              en Ingeniería en Sistemas."
+              {
+                '"Únete a SysMentor y forma parte de una comunidad de estudiantes comprometidos con su desarrollo académico en Ingeniería en Sistemas."'
+              }
             </p>
             <footer className="text-sm">Equipo de SysMentor</footer>
           </blockquote>
