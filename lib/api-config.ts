@@ -21,7 +21,7 @@ export const API_ENDPOINTS = {
 }
 
 // Función para generar claves de caché
-export const generateCacheKey = (endpoint: string, params?: Record<string, any>): string => {
+export const generateCacheKey = (endpoint: string, params?: Record<string, unknown>): string => {
   if (!params) return `cache_${endpoint}`
 
   const paramsString = Object.entries(params)
