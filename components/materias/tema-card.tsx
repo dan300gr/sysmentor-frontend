@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Clock, FileText, Video, HelpCircle, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
@@ -163,8 +163,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
               </div>
             )}
           </div>
-
-
 
           {/* Sección de recursos */}
           {recursos && recursos.length > 0 ? (

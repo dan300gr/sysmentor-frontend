@@ -22,6 +22,18 @@ interface Semestre {
   nombre: string
 }
 
+// Interfaz para los errores de la API
+interface ApiErrorResponse {
+  detail?:
+    | string
+    | Array<{
+        loc?: string[]
+        msg?: string
+        type?: string
+      }>
+  [key: string]: unknown
+}
+
 const formSchema = z
   .object({
     matricula: z.string().regex(/^[Tt][Ii]\d{5}$/, {
@@ -147,7 +159,7 @@ export default function RegisterForm() {
       console.error("Error de registro:", error)
 
       // Tratamos el error como AxiosError para acceder a las propiedades de respuesta
-      const axiosError = error as AxiosError<any>
+      const axiosError = error as AxiosError<ApiErrorResponse>
 
       // Mostrar detalles completos del error para depuración
       if (axiosError.response) {

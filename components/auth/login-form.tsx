@@ -71,7 +71,7 @@ export default function LoginForm() {
               errorMessage = errorData.detail
             }
           }
-        } catch (_) {
+        } catch {
           // Si no se puede parsear el mensaje, usar el mensaje genérico
         }
       }
