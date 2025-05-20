@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import SemestreAccordion from "@/components/temario/semestre-accordion"
@@ -78,30 +78,8 @@ export default function TemarioContent() {
   const router = useRouter()
   const { toast } = useToast()
 
-  // Verificar autenticación al cargar el componente
-  useEffect(() => {
-    // Verificar si el usuario está autenticado
-    if (!isAuthenticated()) {
-      // Si no está autenticado, mostrar mensaje y redirigir a login
-      toast({
-        variant: "destructive",
-        title: "Acceso restringido",
-        description: "Debes iniciar sesión para acceder al temario.",
-      })
-      router.push("/login")
-      return
-    }
-
-    // Si está autenticado, seleccionar una frase motivacional aleatoria
-    const randomIndex = Math.floor(Math.random() * frasesMotivacinales.length)
-    setFraseMotivacional(frasesMotivacinales[randomIndex])
-
-    // Cargar los datos del temario
-    fetchSemestres()
-  }, [router, toast])
-
   // Función para cargar los semestres y materias
-  const fetchSemestres = async () => {
+  const fetchSemestres = useCallback(async () => {
     try {
       setLoading(true)
       const authClient = createAuthClient()
@@ -137,7 +115,29 @@ export default function TemarioContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  // Verificar autenticación al cargar el componente
+  useEffect(() => {
+    // Verificar si el usuario está autenticado
+    if (!isAuthenticated()) {
+      // Si no está autenticado, mostrar mensaje y redirigir a login
+      toast({
+        variant: "destructive",
+        title: "Acceso restringido",
+        description: "Debes iniciar sesión para acceder al temario.",
+      })
+      router.push("/login")
+      return
+    }
+
+    // Si está autenticado, seleccionar una frase motivacional aleatoria
+    const randomIndex = Math.floor(Math.random() * frasesMotivacinales.length)
+    setFraseMotivacional(frasesMotivacinales[randomIndex])
+
+    // Cargar los datos del temario
+    fetchSemestres()
+  }, [router, toast, fetchSemestres])
 
   if (loading) {
     return (
@@ -171,7 +171,7 @@ export default function TemarioContent() {
     <div className="max-w-4xl mx-auto">
       {/* Frase motivacional */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg mb-8 text-center shadow-sm border border-blue-100">
-        <p className="text-blue-800 text-lg italic font-medium">"{fraseMotivacional}"</p>
+        <p className="text-blue-800 text-lg italic font-medium">&quot;{fraseMotivacional}&quot;</p>
       </div>
 
       <div className="space-y-6">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Loader2,
@@ -31,6 +31,7 @@ import { isAuthenticated, getCurrentUser } from "@/lib/auth"
 import { v4 as uuidv4 } from "uuid"
 import { sendChatbotMessage } from "@/lib/chatbot"
 import { markdownToHtml, sanitizeHtml } from "@/lib/markdown"
+import axios from "axios"
 
 // Tipos de generación disponibles
 const generationTypes = [
@@ -81,7 +82,6 @@ const SafeHTML = ({ html }: { html: string }) => {
 }
 
 export default function ChatbotGeneratorContent() {
-  const [prompt, setPrompt] = useState("")
   const [topic, setTopic] = useState("")
   const [generationType, setGenerationType] = useState(generationTypes[0].id)
   const [difficulty, setDifficulty] = useState("intermediate")
@@ -93,9 +93,9 @@ export default function ChatbotGeneratorContent() {
   const [isCopied, setIsCopied] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [randomPromptIdeas, setRandomPromptIdeas] = useState<string[]>([])
-  const [activeTab, setActiveTab] = useState("generator")
   const [isPaused, setIsPaused] = useState(false)
-  const [typingSpeed, setTypingSpeed] = useState(5) // Aumentado de 3 a 5 para mayor velocidad
+  const [typingSpeed] = useState(5) // Aumentado de 3 a 5 para mayor velocidad
+  const [shouldStartTyping, setShouldStartTyping] = useState(false)
 
   // Referencias para controlar la animación de escritura
   const contentRef = useRef<HTMLDivElement>(null)
@@ -105,43 +105,6 @@ export default function ChatbotGeneratorContent() {
 
   const router = useRouter()
   const { toast } = useToast()
-
-  const usePromptIdea = (idea: string) => {
-    setTopic(idea)
-    if (textareaRef.current) {
-      textareaRef.current.focus()
-    }
-  }
-
-  // Verificar autenticación al cargar el componente
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      toast({
-        variant: "destructive",
-        title: "Acceso restringido",
-        description: "Debes iniciar sesión para acceder al generador IA.",
-      })
-      router.push("/login")
-      return
-    }
-
-    // Generar un nuevo sessionId si no existe
-    if (!sessionId) {
-      setSessionId(uuidv4())
-    }
-
-    // Generar ideas de prompts aleatorios según el tipo seleccionado
-    generateRandomPromptIdeas()
-  }, [router, toast, sessionId])
-
-  // Efecto para actualizar el prompt cuando cambia el tipo de generación
-  useEffect(() => {
-    const selectedType = generationTypes.find((type) => type.id === generationType)
-    if (selectedType) {
-      setPrompt(`${selectedType.prompt} ${topic}`)
-      generateRandomPromptIdeas()
-    }
-  }, [generationType, topic])
 
   // Función para calcular la velocidad de escritura con variación natural
   const getTypingDelay = () => {
@@ -158,7 +121,7 @@ export default function ChatbotGeneratorContent() {
   }
 
   // Función para manejar la animación de escritura
-  const typeNextChunk = () => {
+  const typeNextChunk = useCallback(() => {
     if (!isTyping || isPaused || !generatedContent) return
 
     if (currentIndexRef.current < generatedContent.length) {
@@ -179,42 +142,10 @@ export default function ChatbotGeneratorContent() {
       setIsPaused(false) // Resetear el estado de pausa al finalizar
       typingTimerRef.current = null
     }
-  }
-
-  // Efecto para manejar la animación de escritura
-  useEffect(() => {
-    // Iniciar la escritura cuando se establece el contenido generado
-    if (generatedContent && isTyping && !isPaused && !typingTimerRef.current) {
-      currentIndexRef.current = 0
-      typeNextChunk()
-    }
-
-    // Función de limpieza para cancelar el timer cuando el componente se desmonta
-    return () => {
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current)
-        typingTimerRef.current = null
-      }
-    }
-  }, [generatedContent, isTyping, isPaused])
-
-  // Efecto para manejar los cambios en el estado de pausa
-  useEffect(() => {
-    // Limpiar cualquier temporizador existente
-    if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current)
-      typingTimerRef.current = null
-    }
-
-    // Si se reanuda después de una pausa, reiniciar la animación desde el punto actual
-    if (!isPaused && isTyping && generatedContent && displayContent !== generatedContent) {
-      // No reiniciamos currentIndexRef.current, continuamos desde donde estábamos
-      typeNextChunk()
-    }
-  }, [isPaused])
+  }, [isTyping, isPaused, generatedContent, typingSpeed])
 
   // Función para generar ideas de prompts aleatorios
-  const generateRandomPromptIdeas = () => {
+  const generateRandomPromptIdeas = useCallback(() => {
     const ideas: { [key: string]: string[] } = {
       exercise: [
         "Algoritmos de ordenamiento en Python",
@@ -250,7 +181,7 @@ export default function ChatbotGeneratorContent() {
     const currentIdeas = ideas[generationType] || []
     const shuffled = [...currentIdeas].sort(() => 0.5 - Math.random())
     setRandomPromptIdeas(shuffled.slice(0, 3))
-  }
+  }, [generationType])
 
   // Función para generar contenido
   const generateContent = async () => {
@@ -270,7 +201,8 @@ export default function ChatbotGeneratorContent() {
     }
 
     setIsGenerating(true)
-    setIsTyping(true)
+    setIsTyping(false) // Importante: no activamos isTyping hasta que tengamos el contenido
+    setShouldStartTyping(false)
     setIsPaused(false)
     setGeneratedContent("")
     setDisplayContent("")
@@ -313,6 +245,11 @@ export default function ChatbotGeneratorContent() {
       // Guardar la respuesta
       setGeneratedContent(response.respuesta)
 
+      // Activar la animación de escritura en el siguiente ciclo de renderizado
+      setTimeout(() => {
+        setShouldStartTyping(true)
+      }, 0)
+
       // Hacer scroll al contenido generado
       setTimeout(() => {
         if (contentRef.current) {
@@ -321,12 +258,51 @@ export default function ChatbotGeneratorContent() {
       }, 500)
     } catch (error) {
       console.error("Error al generar contenido:", error)
+
+      // Mostrar un toast con información más detallada sobre el error
+      let errorMessage = "No se pudo generar el contenido. Por favor, intenta de nuevo más tarde."
+
+      if (axios.isAxiosError(error)) {
+        if (error.code === "ECONNABORTED") {
+          errorMessage = "La conexión con el servidor ha tardado demasiado. Intenta de nuevo o usa el modo offline."
+        } else if (error.response) {
+          errorMessage = `Error del servidor: ${error.response.status}. ${error.response.data?.message || ""}`
+        } else if (error.request) {
+          errorMessage = "No se pudo conectar con el servidor. Verifica tu conexión a internet."
+        }
+      }
+
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo generar el contenido. Por favor, intenta de nuevo más tarde.",
+        description: errorMessage,
       })
-      setIsTyping(false)
+
+      // Generar contenido offline como fallback
+      try {
+        const offlineResponse = {
+          respuesta:
+            "# Modo Offline Activado\n\n" +
+            "No se pudo conectar con el servidor. Estoy funcionando en modo offline.\n\n" +
+            `## Concepto sobre ${topic}\n\n` +
+            "Para obtener contenido personalizado completo, por favor intenta nuevamente cuando " +
+            "la conexión al servidor se restablezca.\n\n" +
+            "### Mientras tanto, puedes:\n\n" +
+            "- Revisar otros temas\n" +
+            "- Intentar con un tema más específico\n" +
+            "- Verificar tu conexión a internet",
+          session_id: sessionId,
+        }
+
+        setGeneratedContent(offlineResponse.respuesta)
+
+        // Activar la animación de escritura en el siguiente ciclo de renderizado
+        setTimeout(() => {
+          setShouldStartTyping(true)
+        }, 0)
+      } catch (offlineError) {
+        console.error("Error al generar contenido offline:", offlineError)
+      }
     } finally {
       setIsGenerating(false)
     }
@@ -380,6 +356,7 @@ export default function ChatbotGeneratorContent() {
     setIsGenerating(false)
     setIsTyping(false)
     setIsPaused(false)
+    setShouldStartTyping(false)
 
     // Mostrar mensaje de cancelación
     toast({
@@ -390,8 +367,73 @@ export default function ChatbotGeneratorContent() {
 
   // Función para pausar/reanudar la generación
   const togglePause = () => {
-    setIsPaused(!isPaused)
+    setIsPaused((prev) => !prev)
   }
+
+  // Inicialización
+  useEffect(() => {
+    // Generar un nuevo sessionId si no existe
+    if (!sessionId) {
+      setSessionId(uuidv4())
+    }
+
+    // Verificar autenticación al cargar el componente
+    if (!isAuthenticated()) {
+      toast({
+        variant: "destructive",
+        title: "Acceso restringido",
+        description: "Debes iniciar sesión para acceder al generador IA.",
+      })
+      router.push("/login")
+      return
+    }
+
+    // Generar ideas de prompts aleatorios según el tipo seleccionado
+    generateRandomPromptIdeas()
+
+    // Limpieza al desmontar
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current)
+        typingTimerRef.current = null
+      }
+    }
+  }, [router, toast, sessionId, generateRandomPromptIdeas])
+
+  // Efecto para actualizar las ideas de prompts cuando cambia el tipo
+  useEffect(() => {
+    generateRandomPromptIdeas()
+  }, [generationType, generateRandomPromptIdeas])
+
+  // Efecto para iniciar la animación de escritura cuando shouldStartTyping cambia a true
+  useEffect(() => {
+    if (shouldStartTyping && generatedContent && !isTyping && !isPaused) {
+      currentIndexRef.current = 0
+      setIsTyping(true)
+    }
+  }, [shouldStartTyping, generatedContent, isTyping, isPaused])
+
+  // Efecto para manejar la animación de escritura
+  useEffect(() => {
+    // Limpiar cualquier temporizador existente
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+    }
+
+    // Solo iniciar la animación si isTyping es true
+    if (isTyping && !isPaused && generatedContent) {
+      typeNextChunk()
+    }
+
+    // Limpieza
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current)
+        typingTimerRef.current = null
+      }
+    }
+  }, [isTyping, isPaused, generatedContent, typeNextChunk])
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -453,14 +495,14 @@ export default function ChatbotGeneratorContent() {
                 <SelectContent>
                   {difficultyLevels.map((level) => (
                     <SelectItem key={level.id} value={level.id}>
-                      <div className="flex items-center">
-                        <span>{level.name}</span>
-                        <span className="ml-2 text-xs text-gray-500">- {level.description}</span>
-                      </div>
+                      {level.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1 text-xs text-gray-500">
+                {difficultyLevels.find((level) => level.id === difficulty)?.description}
+              </p>
             </div>
 
             <div>
@@ -601,7 +643,7 @@ export default function ChatbotGeneratorContent() {
                         <li>Selecciona el tipo de contenido que deseas generar</li>
                         <li>Elige el nivel de dificultad adecuado</li>
                         <li>Especifica el tema sobre el que quieres generar contenido</li>
-                        <li>Haz clic en "Generar Contenido"</li>
+                        <li>Haz clic en &quot;Generar Contenido&quot;</li>
                       </ol>
                     </div>
                   </div>

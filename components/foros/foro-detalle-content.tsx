@@ -279,12 +279,12 @@ export default function ForoDetalleContent() {
         title: "Reacción registrada",
         description: tipo === "like" ? "Has dado like al tema." : "Has dado dislike al tema.",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error al reaccionar:", error)
 
       // Mostrar mensaje de error más específico si está disponible
       const errorMessage =
-        error.message && error.message.includes("Error al reaccionar:")
+        error instanceof Error && error.message.includes("Error al reaccionar:")
           ? error.message
           : "No se pudo registrar tu reacción. Por favor, intenta de nuevo."
 

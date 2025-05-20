@@ -12,13 +12,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Eye, EyeOff } from "lucide-react"
 import { loginUser } from "@/lib/auth"
 
-// Definir una interfaz para los errores de la API
-interface ApiError {
-  message: string
-  status?: number
-  [key: string]: unknown
-}
-
 const formSchema = z.object({
   matricula: z.string().regex(/^[Tt][Ii]\d{5}$/, {
     message: "La matrícula debe comenzar con TI seguido de 5 números (ejemplo: TI43086)",
@@ -61,7 +54,7 @@ export default function LoginForm() {
 
       // Redirigir al usuario a la página principal
       router.push("/")
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error de inicio de sesión:", error)
 
       let errorMessage = "Matrícula o contraseña incorrecta. Por favor, intenta de nuevo."
@@ -78,7 +71,7 @@ export default function LoginForm() {
               errorMessage = errorData.detail
             }
           }
-        } catch (_parseError) {
+        } catch (e) {
           // Si no se puede parsear el mensaje, usar el mensaje genérico
         }
       }

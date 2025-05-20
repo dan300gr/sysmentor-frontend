@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, Eye, EyeOff } from "lucide-react"
-import axios, { type AxiosError } from "axios"
+import axios from "axios"
 import Link from "next/link"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-sysmentor.onrender.com"
@@ -20,18 +20,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-sysmentor.onrend
 interface Semestre {
   id: number
   nombre: string
-}
-
-// Interfaz para los errores de la API
-interface ApiErrorResponse {
-  detail?:
-    | string
-    | Array<{
-        loc?: string[]
-        msg?: string
-        type?: string
-      }>
-  [key: string]: unknown
 }
 
 const formSchema = z
@@ -122,7 +110,7 @@ export default function RegisterForm() {
     setIsLoading(true)
     try {
       // Eliminar confirmar_contrasena antes de enviar
-      const { confirmar_contrasena: _confirmarContrasena, ...userData } = values
+      const { confirmar_contrasena, ...userData } = values
 
       // Crear el objeto con los campos exactos que espera la API
       const apiData = {
@@ -154,33 +142,32 @@ export default function RegisterForm() {
 
       // Redirigir al usuario a la página de inicio de sesión
       router.push("/login")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error de registro:", error)
 
       // Mostrar detalles completos del error para depuración
-      const axiosError = error as AxiosError<ApiErrorResponse>
-      if (axiosError.response) {
-        console.error("Respuesta del servidor:", axiosError.response.status, axiosError.response.data)
+      if (error.response) {
+        console.error("Respuesta del servidor:", error.response.status, error.response.data)
       }
 
       let errorMessage = "Error al crear la cuenta. Por favor, intenta de nuevo."
 
       // Manejar errores específicos de la API
-      if (axiosError.response) {
-        if (axiosError.response.status === 400) {
-          if (axiosError.response.data?.detail && typeof axiosError.response.data.detail === "string") {
-            if (axiosError.response.data.detail.includes("matrícula")) {
+      if (error.response) {
+        if (error.response.status === 400) {
+          if (error.response.data.detail && typeof error.response.data.detail === "string") {
+            if (error.response.data.detail.includes("matrícula")) {
               errorMessage = "La matrícula ya está registrada."
-            } else if (axiosError.response.data.detail.includes("correo")) {
+            } else if (error.response.data.detail.includes("correo")) {
               errorMessage = "El correo electrónico ya está registrado."
             } else {
-              errorMessage = axiosError.response.data.detail
+              errorMessage = error.response.data.detail
             }
           }
-        } else if (axiosError.response.status === 422) {
+        } else if (error.response.status === 422) {
           errorMessage = "Datos de registro inválidos. Verifica la información proporcionada."
-          if (axiosError.response.data?.detail && Array.isArray(axiosError.response.data.detail)) {
-            const firstError = axiosError.response.data.detail[0]
+          if (error.response.data.detail && Array.isArray(error.response.data.detail)) {
+            const firstError = error.response.data.detail[0]
             if (firstError && firstError.msg) {
               errorMessage = `${firstError.msg} (campo: ${firstError.loc ? firstError.loc.join(".") : "desconocido"})`
             }

@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import { getCurrentUser, isAuthenticated } from "@/lib/auth"
 import { v4 as uuidv4 } from "uuid"
-import { sendChatbotMessage } from "@/lib/chatbot"
+import { sendChatbotMessage, getUserConversations, getConversationMessages } from "@/lib/chatbot"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { simulateTyping, isOnline, startConnectionCheck, stopConnectionCheck } from "@/lib/utils"
@@ -160,6 +160,11 @@ const SafeHTML = ({ html }: { html: string }) => {
   return <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }} className="prose prose-sm max-w-none" />
 }
 
+// Clave para almacenar el ID de sesión actual en localStorage
+const CURRENT_SESSION_KEY = "currentChatSessionId"
+// Clave para almacenar las sesiones anónimas en localStorage
+const ANONYMOUS_SESSIONS_KEY = "chatSessions"
+
 export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boolean) => void }) {
   const [isMinimized, setIsMinimized] = useState(false)
   const [message, setMessage] = useState("")
@@ -169,16 +174,12 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
   const [showSessions, setShowSessions] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+  const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { toast } = useToast()
   const [isMobile, setIsMobile] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [offlineMode, setOfflineMode] = useState(false)
-
-  // Añadir un nuevo estado para controlar si el usuario está autenticado
   const [userAuthenticated, setUserAuthenticated] = useState<boolean>(false)
-  const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false)
   const router = useRouter()
 
   // Detectar si es un dispositivo móvil
@@ -192,17 +193,24 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  // Añadir un efecto para verificar la autenticación del usuario
+  // Verificar autenticación y cargar sesión guardada al iniciar
   useEffect(() => {
     const checkAuthentication = () => {
       const authenticated = isAuthenticated()
       setUserAuthenticated(authenticated)
 
-      // Si el usuario acaba de autenticarse y tenía sesiones anónimas, limpiarlas
+      // Intentar cargar la sesión actual desde localStorage
+      const savedSessionId = localStorage.getItem(CURRENT_SESSION_KEY)
+
+      if (savedSessionId) {
+        setCurrentSessionId(savedSessionId)
+      } else if (!currentSessionId) {
+        // Si no hay sesión guardada, crear una nueva
+        createNewSession()
+      }
+
+      // Si el usuario acaba de autenticarse y tenía sesiones anónimas, mantenerlas
       if (authenticated && !userAuthenticated) {
-        // Limpiar sesiones anónimas del localStorage
-        localStorage.removeItem("chatSessions")
-        // Cargar las conversaciones del usuario autenticado
         loadUserConversations()
       }
     }
@@ -214,45 +222,28 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
     return () => window.removeEventListener("storage", checkAuthentication)
   }, [userAuthenticated])
 
-  // Reemplazar el efecto de carga de sesiones para manejar usuarios autenticados vs anónimos
+  // Cargar sesiones cuando cambia el estado de autenticación o el ID de sesión
   useEffect(() => {
-    if (!currentSessionId) {
-      createNewSession()
-    }
-
     // Si el usuario está autenticado, cargar sus conversaciones desde el backend
     if (userAuthenticated) {
       loadUserConversations()
     } else {
       // Para usuarios anónimos, cargar desde localStorage
-      const savedSessions = localStorage.getItem("chatSessions")
-      if (savedSessions) {
-        try {
-          const parsedSessions = JSON.parse(savedSessions)
-          // Convertir las fechas de string a Date
-          const sessionsWithDates = parsedSessions.map((session: any) => ({
-            ...session,
-            createdAt: new Date(session.createdAt),
-            lastUpdated: new Date(session.lastUpdated),
-            messages: session.messages.map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp),
-            })),
-          }))
-          setSessions(sessionsWithDates)
-        } catch (error) {
-          console.error("Error loading saved sessions:", error)
-        }
-      }
+      loadAnonymousSessions()
     }
-  }, [currentSessionId, userAuthenticated])
+  }, [userAuthenticated, currentSessionId])
 
-  // Modificar el efecto de guardado de sesiones para solo guardar en localStorage si es anónimo
+  // Guardar sesiones anónimas en localStorage cuando cambian
   useEffect(() => {
     if (sessions.length > 0 && !userAuthenticated) {
-      localStorage.setItem("chatSessions", JSON.stringify(sessions))
+      localStorage.setItem(ANONYMOUS_SESSIONS_KEY, JSON.stringify(sessions))
     }
-  }, [sessions, userAuthenticated])
+
+    // Guardar el ID de sesión actual
+    if (currentSessionId) {
+      localStorage.setItem(CURRENT_SESSION_KEY, currentSessionId)
+    }
+  }, [sessions, currentSessionId, userAuthenticated])
 
   // Añadir efecto para desplazarse al final de los mensajes cuando se añaden nuevos
   useEffect(() => {
@@ -261,36 +252,135 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
     }
   }, [messages])
 
+  // Cargar sesiones anónimas desde localStorage
+  const loadAnonymousSessions = useCallback(() => {
+    const savedSessions = localStorage.getItem(ANONYMOUS_SESSIONS_KEY)
+    if (savedSessions) {
+      try {
+        const parsedSessions = JSON.parse(savedSessions)
+        // Convertir las fechas de string a Date
+        const sessionsWithDates = parsedSessions.map((session: ChatSession) => ({
+          ...session,
+          createdAt: new Date(session.createdAt),
+          lastUpdated: new Date(session.lastUpdated),
+          messages: session.messages.map((msg) => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+          })),
+        }))
+        setSessions(sessionsWithDates)
+
+        // Cargar mensajes de la sesión actual
+        if (currentSessionId) {
+          const currentSession = sessionsWithDates.find((s: ChatSession) => s.id === currentSessionId)
+          if (currentSession) {
+            setMessages(currentSession.messages)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading saved sessions:", error)
+      }
+    }
+  }, [currentSessionId])
+
   // Modificar la función loadUserConversations para manejar mejor los errores de red
   const loadUserConversations = useCallback(async () => {
-    // No intentar cargar conversaciones del servidor
-    console.log("Carga de conversaciones desactivada")
+    try {
+      setIsLoadingConversations(true)
+      const user = getCurrentUser()
 
-    // Crear una nueva sesión si no hay ninguna
-    if (sessions.length === 0) {
-      createNewSession()
+      if (!user) {
+        console.error("No se pudo obtener el usuario actual")
+        return
+      }
+
+      // Intentar cargar conversaciones del servidor
+      const conversationsData = await getUserConversations(user.matricula)
+
+      if (Array.isArray(conversationsData) && conversationsData.length > 0) {
+        // Convertir las conversaciones del servidor al formato local
+        const formattedSessions = conversationsData.map((conv) => ({
+          id: conv.session_id,
+          title: conv.titulo || `Chat ${new Date(conv.fecha_ultima_actividad).toLocaleString()}`,
+          messages: [], // Los mensajes se cargarán bajo demanda
+          createdAt: new Date(conv.fecha_ultima_actividad),
+          lastUpdated: new Date(conv.fecha_ultima_actividad),
+        }))
+
+        setSessions(formattedSessions)
+
+        // Si hay una sesión actual, cargar sus mensajes
+        if (currentSessionId) {
+          await loadSessionMessages(currentSessionId)
+        } else if (formattedSessions.length > 0) {
+          // Si no hay sesión actual pero hay conversaciones, usar la primera
+          setCurrentSessionId(formattedSessions[0].id)
+          await loadSessionMessages(formattedSessions[0].id)
+        } else {
+          // Si no hay conversaciones, crear una nueva sesión
+          createNewSession()
+        }
+      } else {
+        // Si no hay conversaciones en el servidor, crear una nueva
+        if (!currentSessionId) {
+          createNewSession()
+        }
+      }
+    } catch (error) {
+      console.error("Error al cargar conversaciones:", error)
+      // Si hay un error, asegurarse de que haya al menos una sesión
+      if (sessions.length === 0) {
+        createNewSession()
+      }
+    } finally {
+      setIsLoadingConversations(false)
     }
-
-    return
-  }, [sessions.length])
+  }, [currentSessionId])
 
   // Modificar la función loadSessionMessages para manejar mejor los errores de red
   const loadSessionMessages = async (sessionId: string) => {
-    if (!userAuthenticated) {
+    try {
       // Para usuarios anónimos, cargar desde el estado local
-      const session = sessions.find((s) => s.id === sessionId)
-      if (session) {
-        setCurrentSessionId(sessionId)
-        setMessages(session.messages)
-        setShowSessions(false)
+      if (!userAuthenticated) {
+        const session = sessions.find((s) => s.id === sessionId)
+        if (session) {
+          setCurrentSessionId(sessionId)
+          setMessages(session.messages)
+          setShowSessions(false)
+        }
+        return
       }
-      return
-    }
 
-    // Para usuarios autenticados, simplemente cambiar a la sesión sin cargar mensajes
-    setCurrentSessionId(sessionId)
-    setMessages([]) // Iniciar con mensajes vacíos
-    setShowSessions(false)
+      // Para usuarios autenticados, cargar del servidor
+      const messagesData = await getConversationMessages(sessionId)
+
+      if (messagesData && messagesData.mensajes) {
+        // Convertir los mensajes del servidor al formato local
+        const formattedMessages = messagesData.mensajes.map((msg) => ({
+          id: `msg-${msg.id}`,
+          role: msg.matricula ? ("user" as const) : ("assistant" as const),
+          content: msg.matricula ? msg.mensaje || "" : msg.respuesta || "",
+          displayContent: msg.matricula ? msg.mensaje || "" : msg.respuesta || "",
+          formattedContent: msg.matricula ? msg.mensaje || "" : markdownToHtml(msg.respuesta || ""),
+          timestamp: new Date(msg.fecha),
+        }))
+
+        setMessages(formattedMessages)
+        setCurrentSessionId(sessionId)
+
+        // Actualizar la sesión en el estado local
+        setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, messages: formattedMessages } : s)))
+      }
+
+      setShowSessions(false)
+    } catch (error) {
+      console.error("Error al cargar mensajes:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los mensajes de la conversación.",
+      })
+    }
   }
 
   // Crear una nueva sesión
@@ -310,17 +400,20 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
 
     setSessions((prev) => [newSession, ...prev])
     setShowSessions(false)
+
+    // Guardar el ID de sesión actual en localStorage
+    localStorage.setItem(CURRENT_SESSION_KEY, newSessionId)
   }
 
   // Cambiar a una sesión existente
-  const switchToSession = (sessionId: string) => {
-    const session = sessions.find((s) => s.id === sessionId)
-    if (session) {
-      setCurrentSessionId(sessionId)
-      setMessages(session.messages)
-      setShowSessions(false)
-    }
-  }
+  // const switchToSession = (sessionId: string) => {
+  //   const session = sessions.find((s) => s.id === sessionId)
+  //   if (session) {
+  //     setCurrentSessionId(sessionId)
+  //     setMessages(session.messages)
+  //     setShowSessions(false)
+  //   }
+  // }
 
   // Modificar la función sendMessage para manejar usuarios autenticados vs anónimos
   const sendMessage = async () => {
@@ -394,7 +487,7 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
       }
 
       // Si el usuario está autenticado, recargar las conversaciones para actualizar la lista
-      if (userAuthenticated && !offlineMode) {
+      if (userAuthenticated) {
         setTimeout(() => {
           loadUserConversations()
         }, 1000)
@@ -413,7 +506,7 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
             : "Lo siento, ha ocurrido un error al procesar tu mensaje. Por favor, intenta de nuevo más tarde.",
         displayContent:
           error instanceof Error && error.message === "Sin conexión a internet"
-            ? "Parece que no tienes conexión a internet. Por favor, verifica tu conexión e intenta de nuevo."
+            ? "Parece que no tienes conexión a internet. Por favor, verifica tu conexión."
             : "Lo siento, ha ocurrido un error al procesar tu mensaje. Por favor, intenta de nuevo más tarde.",
         timestamp: new Date(),
       }
@@ -612,13 +705,10 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
                 24/7
               </Badge>
 
-              {/* Indicador de modo offline */}
-              {offlineMode && (
-                <Badge className="ml-2 bg-amber-500/80 text-white border-0 text-xs flex items-center">
-                  <WifiOff className="h-3 w-3 mr-1" />
-                  Modo offline
-                </Badge>
-              )}
+              {/* Indicador de estado de autenticación */}
+              <Badge className="ml-2 bg-blue-400/80 text-white border-0 text-xs">
+                {userAuthenticated ? "Sesión guardada" : "Sesión local"}
+              </Badge>
             </div>
             <div className="flex items-center space-x-1">
               <Button
@@ -905,12 +995,6 @@ export default function FloatingChat({ isOpen, setIsOpen }: { isOpen: boolean; s
       stopConnectionCheck()
     }
   }, [])
-
-  // Function to retry loading conversations
-  const retryLoadingConversations = () => {
-    console.log("Retry loading conversations")
-    loadUserConversations()
-  }
 
   return (
     <>

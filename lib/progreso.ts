@@ -17,7 +17,7 @@ export interface ProgresoRecurso {
   recurso_id: number
   estado: EstadoProgresoType
   fecha_inicio?: string
-  fecha_finalizacion?: string
+  fecha_finalizacion?: string | null
   calificacion?: number
   comentarios?: string
 }
@@ -134,7 +134,7 @@ export async function marcarEnProgreso(recursoId: number): Promise<ProgresoRecur
       recurso_id: recursoId,
       estado: EstadoProgreso.EN_PROGRESO,
       fecha_inicio: ahora,
-      fecha_finalizacion: null as any, // La API podría requerir este campo aunque sea nulo
+      fecha_finalizacion: null,
       calificacion: 0,
       comentarios: "",
     }

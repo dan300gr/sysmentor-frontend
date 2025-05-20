@@ -93,15 +93,13 @@ function checkConnection(): void {
 }
 
 // Función para simular el efecto de escritura progresiva
-export function simulateTyping(
+export function simulateTyping<T>(
   text: string,
   messageId: string,
-  setMessages: React.Dispatch<React.SetStateAction<any[]>>,
-  formatText?: (text: string) => any,
+  setMessages: React.Dispatch<React.SetStateAction<T[]>>,
+  formatText?: (text: string) => Partial<T>,
 ) {
   let currentIndex = 0
-  // Reducir la velocidad: menos caracteres por iteración
-  const typingSpeed = 3
   // Aumentar el intervalo: más tiempo entre iteraciones
   const typingInterval = 40
 
@@ -130,11 +128,11 @@ export function simulateTyping(
 
       setMessages((prevMessages) =>
         prevMessages.map((msg) => {
-          if (msg.id === messageId) {
+          if ((msg as unknown as { id: string }).id === messageId) {
             if (formatText) {
               return { ...msg, ...formatText(currentText) }
             }
-            return { ...msg, displayContent: currentText }
+            return { ...msg, displayContent: currentText } as T
           }
           return msg
         }),

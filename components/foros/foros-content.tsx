@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   Loader2,
@@ -44,31 +44,8 @@ export default function ForosContent() {
   const router = useRouter()
   const { toast } = useToast()
 
-  // Verificar autenticación al cargar el componente
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      toast({
-        variant: "destructive",
-        title: "Acceso restringido",
-        description: "Debes iniciar sesión para acceder a los foros.",
-      })
-      router.push("/login")
-      return
-    }
-
-    // Cargar los temas del foro
-    cargarTemas()
-  }, [router, toast])
-
-  // Cargar temas cuando cambia la materia seleccionada o la pestaña activa
-  useEffect(() => {
-    if (isAuthenticated()) {
-      cargarTemas()
-    }
-  }, [materiaSeleccionada, activeTab])
-
   // Función para cargar los temas del foro
-  const cargarTemas = async () => {
+  const cargarTemas = useCallback(async () => {
     try {
       setLoading(true)
       const materiaId = materiaSeleccionada !== "todas" ? Number.parseInt(materiaSeleccionada) : undefined
@@ -112,7 +89,30 @@ export default function ForosContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [materiaSeleccionada, activeTab, toast])
+
+  // Verificar autenticación al cargar el componente
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      toast({
+        variant: "destructive",
+        title: "Acceso restringido",
+        description: "Debes iniciar sesión para acceder a los foros.",
+      })
+      router.push("/login")
+      return
+    }
+
+    // Cargar los temas del foro
+    cargarTemas()
+  }, [router, toast, cargarTemas])
+
+  // Cargar temas cuando cambia la materia seleccionada o la pestaña activa
+  useEffect(() => {
+    if (isAuthenticated()) {
+      cargarTemas()
+    }
+  }, [materiaSeleccionada, activeTab, cargarTemas])
 
   // Filtrar temas según la búsqueda
   const temasFiltrados = temas.filter(

@@ -52,14 +52,14 @@ const getMateriaIcon = (nombre: string) => {
 }
 
 // Colores para los semestres según su número
-const getSemestreColor = (numero: number) => {
+const getSemestreColor = () => {
   // Usar un solo color para todos los semestres por estética y seriedad
   return "from-blue-600 to-blue-700"
 }
 
 export default function SemestreAccordion({ semestre, materias, semestreNumero }: SemestreAccordionProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const bgGradient = getSemestreColor(semestreNumero)
+  const bgGradient = getSemestreColor()
   const router = useRouter()
 
   // Función para navegar a la página de temas de la materia
