@@ -21,7 +21,6 @@ interface Materia {
 interface SemestreAccordionProps {
   semestre: Semestre
   materias: Materia[]
-  semestreNumero: number
 }
 
 // Función para determinar el icono de la materia basado en su nombre
@@ -57,7 +56,7 @@ const getSemestreColor = () => {
   return "from-blue-600 to-blue-700"
 }
 
-export default function SemestreAccordion({ semestre, materias, semestreNumero }: SemestreAccordionProps) {
+export default function SemestreAccordion({ semestre, materias }: SemestreAccordionProps) {
   const [isOpen, setIsOpen] = useState(false)
   const bgGradient = getSemestreColor()
   const router = useRouter()

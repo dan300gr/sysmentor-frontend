@@ -100,11 +100,13 @@ export default function TemarioContent() {
     fetchSemestres()
   }, [router, toast])
 
-  // Función para cargar los semestres y materias
+  // Función optimizada para cargar los semestres y materias
   const fetchSemestres = async () => {
     try {
       setLoading(true)
       const authClient = createAuthClient()
+
+      // Obtener semestres
       const response = await authClient.get("/semestres")
 
       // Ordenar semestres usando la función de extracción de número
@@ -116,15 +118,26 @@ export default function TemarioContent() {
 
       setSemestres(semestresOrdenados)
 
-      // Cargar materias para cada semestre
-      const materiasData: Record<number, Materia[]> = {}
+      // Cargar todas las materias en una sola solicitud
+      const todasMateriasResponse = await authClient.get("/materias")
+      const todasMaterias: Materia[] = todasMateriasResponse.data
 
-      for (const semestre of semestresOrdenados) {
-        const materiasResponse = await authClient.get(`/materias?semestre_id=${semestre.id}`)
-        materiasData[semestre.id] = materiasResponse.data
-      }
+      // Organizar materias por semestre_id
+      const materiasAgrupadas: Record<number, Materia[]> = {}
 
-      setMateriasPorSemestre(materiasData)
+      // Inicializar arrays vacíos para cada semestre
+      semestresOrdenados.forEach((semestre: Semestre) => {
+        materiasAgrupadas[semestre.id] = []
+      })
+
+      // Agrupar materias por semestre_id
+      todasMaterias.forEach((materia: Materia) => {
+        if (materiasAgrupadas[materia.semestre_id]) {
+          materiasAgrupadas[materia.semestre_id].push(materia)
+        }
+      })
+
+      setMateriasPorSemestre(materiasAgrupadas)
       setError(null)
     } catch (err) {
       console.error("Error al cargar el temario:", err)
@@ -183,7 +196,6 @@ export default function TemarioContent() {
               key={semestre.id}
               semestre={semestre}
               materias={materiasPorSemestre[semestre.id] || []}
-              semestreNumero={getSemestreNumero(semestre.nombre)}
             />
           ))
         )}
