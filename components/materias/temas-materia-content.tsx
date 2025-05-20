@@ -9,7 +9,6 @@ import { useToast } from "@/components/ui/use-toast"
 import TemaCard from "@/components/materias/tema-card"
 import { EstadoProgreso, type EstadoProgresoType, obtenerTodosLosProgresos } from "@/lib/progreso"
 
-// Interfaces para los tipos de datos
 interface Materia {
   id: number
   nombre: string
@@ -50,15 +49,13 @@ export default function TemasMateriaContent() {
   const [recursos, setRecursos] = useState<Record<number, Recurso[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [progresos, setProgresos] = useState<Record<number, ProgresoRecurso>>({})
+  const [, setProgresos] = useState<Record<number, ProgresoRecurso>>({}) // corregido: no se usa 'progresos'
   const [progresoGeneral, setProgresoGeneral] = useState(0)
 
   const router = useRouter()
   const { toast } = useToast()
 
-  // Verificar autenticación y cargar datos al montar el componente
   useEffect(() => {
-    // Verificar si el usuario está autenticado
     if (!isAuthenticated()) {
       toast({
         variant: "destructive",
@@ -75,25 +72,20 @@ export default function TemasMateriaContent() {
       return
     }
 
-    // Cargar datos de la materia y sus temas
     fetchData()
   }, [materiaId, router, toast])
 
-  // Cargar progresos de los recursos
   useEffect(() => {
     const cargarProgresos = async () => {
       try {
         const todosProgresos = await obtenerTodosLosProgresos()
 
-        // Convertir array a objeto indexado por recurso_id
         const progresosObj: Record<number, ProgresoRecurso> = {}
         todosProgresos.forEach((progreso) => {
           progresosObj[progreso.recurso_id] = progreso
         })
 
         setProgresos(progresosObj)
-
-        // Calcular progreso general
         calcularProgresoGeneral(progresosObj)
       } catch (error) {
         console.error("Error al cargar progresos:", error)
@@ -110,38 +102,26 @@ export default function TemasMateriaContent() {
       setLoading(true)
       const authClient = createAuthClient()
 
-      // Obtener información de la materia
       const materiaResponse = await authClient.get(`/materias/${materiaId}`)
       setMateria(materiaResponse.data)
 
-      // Obtener temas de la materia
       const temasResponse = await authClient.get(`/semanas-temas?materia_id=${materiaId}`)
-
-      // Ordenar temas por número de semana
       const temasOrdenados = temasResponse.data.sort(
         (a: SemanaTema, b: SemanaTema) => a.numero_semana - b.numero_semana,
       )
       setTemas(temasOrdenados)
 
-      // Obtener recursos para cada tema
       const recursosPorTema: Record<number, Recurso[]> = {}
-
-      // Inicializar el objeto con arrays vacíos para cada tema
       temasOrdenados.forEach((tema: SemanaTema) => {
         recursosPorTema[tema.id] = []
       })
 
-      // Obtener todos los recursos para esta materia
       for (const tema of temasOrdenados) {
         try {
           const recursosResponse = await authClient.get(`/recursos?semana_tema_id=${tema.id}`)
-
-          // Si hay recursos, agregarlos al objeto
           if (recursosResponse.data && Array.isArray(recursosResponse.data)) {
-            // Asegurarse de que cada recurso tenga un título
             const recursosConTitulo = recursosResponse.data.map((recurso: Recurso) => {
               if (!recurso.titulo) {
-                // Si no tiene título, crear uno basado en el tipo
                 return {
                   ...recurso,
                   titulo: `${recurso.tipo.charAt(0).toUpperCase() + recurso.tipo.slice(1)} - Semana ${tema.numero_semana}`,
@@ -172,18 +152,15 @@ export default function TemasMateriaContent() {
     }
   }
 
-  // Calcular el progreso general de la materia
   const calcularProgresoGeneral = (progresosObj: Record<number, ProgresoRecurso>) => {
     let totalRecursos = 0
     let completados = 0
     let enProgreso = 0
 
-    // Contar todos los recursos y su estado
     Object.values(recursos).forEach((temasRecursos) => {
       temasRecursos.forEach((recurso) => {
         totalRecursos++
         const progreso = progresosObj[recurso.id]
-
         if (progreso) {
           if (progreso.estado === EstadoProgreso.COMPLETADO) {
             completados++
@@ -199,12 +176,10 @@ export default function TemasMateriaContent() {
       return
     }
 
-    // Calcular porcentaje: completados valen 100%, en progreso valen 50%
     const porcentaje = Math.round(((completados * 100 + enProgreso * 50) / (totalRecursos * 100)) * 100)
     setProgresoGeneral(porcentaje)
   }
 
-  // Función para volver a la página anterior
   const handleBack = () => {
     router.back()
   }
@@ -252,7 +227,6 @@ export default function TemasMateriaContent() {
     )
   }
 
-  // Contar recursos totales
   const contarRecursosTotales = () => {
     let total = 0
     Object.values(recursos).forEach((temasRecursos) => {
@@ -263,7 +237,6 @@ export default function TemasMateriaContent() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Encabezado de la materia */}
       <div className="mb-8">
         <Button onClick={handleBack} variant="outline" className="mb-4 flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -296,10 +269,8 @@ export default function TemasMateriaContent() {
         </div>
       </div>
 
-      {/* Contenido de los temas */}
       <div className="space-y-8">
         <h2 className="text-2xl font-semibold text-gray-800 border-b pb-2">Temas por Semana</h2>
-
         {temas.length === 0 ? (
           <div className="bg-gray-50 rounded-lg p-8 text-center">
             <p className="text-gray-500">No hay temas disponibles para esta materia.</p>

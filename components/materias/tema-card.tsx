@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Clock, FileText, Video, HelpCircle, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
@@ -38,7 +38,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
   const [progresos, setProgresos] = useState<Record<number, EstadoProgresoType>>({})
   const [cargandoProgresos, setCargandoProgresos] = useState(true)
 
-  // Cargar progresos de los recursos
   useEffect(() => {
     const cargarProgresos = async () => {
       if (recursos.length === 0) return
@@ -49,11 +48,7 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
       for (const recurso of recursos) {
         try {
           const progreso = await obtenerProgresoRecurso(recurso.id)
-          if (progreso) {
-            nuevosProgresos[recurso.id] = progreso.estado as EstadoProgresoType
-          } else {
-            nuevosProgresos[recurso.id] = EstadoProgreso.NO_INICIADO
-          }
+          nuevosProgresos[recurso.id] = progreso?.estado ?? EstadoProgreso.NO_INICIADO
         } catch (error) {
           console.error(`Error al cargar progreso para recurso ${recurso.id}:`, error)
           nuevosProgresos[recurso.id] = EstadoProgreso.NO_INICIADO
@@ -67,19 +62,16 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
     cargarProgresos()
   }, [recursos])
 
-  // Función para abrir el modal con el recurso seleccionado
   const handleOpenRecurso = (recurso: Recurso) => {
     setSelectedRecurso(recurso)
     setIsModalOpen(true)
   }
 
-  // Función para cerrar el modal
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setSelectedRecurso(null)
   }
 
-  // Función para actualizar los progresos después de interactuar con un recurso
   const handleProgresoActualizado = async () => {
     if (selectedRecurso) {
       try {
@@ -96,7 +88,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
     }
   }
 
-  // Función para obtener el icono según el tipo de recurso
   const getRecursoIcon = (tipo: string) => {
     switch (tipo) {
       case "video":
@@ -110,7 +101,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
     }
   }
 
-  // Calcular el progreso general del tema
   const calcularProgresoTema = (): number => {
     if (recursos.length === 0) return 0
 
@@ -118,14 +108,10 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
     let enProgreso = 0
 
     Object.values(progresos).forEach((estado) => {
-      if (estado === EstadoProgreso.COMPLETADO) {
-        completados++
-      } else if (estado === EstadoProgreso.EN_PROGRESO) {
-        enProgreso++
-      }
+      if (estado === EstadoProgreso.COMPLETADO) completados++
+      else if (estado === EstadoProgreso.EN_PROGRESO) enProgreso++
     })
 
-    // Calcular porcentaje: completados valen 100%, en progreso valen 50%
     return Math.round(((completados * 100 + enProgreso * 50) / (recursos.length * 100)) * 100)
   }
 
@@ -155,7 +141,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
             <div className="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs font-medium">
               Semana {tema.numero_semana} de 18
             </div>
-
             {recursos.length > 0 && !cargandoProgresos && (
               <div className="text-sm text-gray-600 flex items-center">
                 <span className="mr-2">Progreso:</span>
@@ -164,10 +149,7 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
             )}
           </div>
 
-
-
-          {/* Sección de recursos */}
-          {recursos && recursos.length > 0 ? (
+          {recursos.length > 0 ? (
             <div className="mt-4">
               <h4 className="text-sm font-semibold text-gray-700 mb-2">Recursos disponibles:</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -188,7 +170,9 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
                     <Button
                       key={recurso.id}
                       variant="outline"
-                      className={`justify-start text-left h-auto py-2 ${estado === EstadoProgreso.COMPLETADO ? "border-green-300" : ""}`}
+                      className={`justify-start text-left h-auto py-2 ${
+                        estado === EstadoProgreso.COMPLETADO ? "border-green-300" : ""
+                      }`}
                       onClick={() => handleOpenRecurso(recurso)}
                     >
                       <div className="flex items-center w-full">
@@ -201,11 +185,9 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
                             <div className="text-xs text-gray-500 capitalize">{recurso.tipo}</div>
                           </div>
                         </div>
-
                         {estado === EstadoProgreso.COMPLETADO && (
                           <CheckCircle className="h-4 w-4 text-green-500 ml-2" />
                         )}
-
                         {statusText && (
                           <span className={`text-xs px-2 py-1 rounded-full ml-2 ${statusColor}`}>{statusText}</span>
                         )}
@@ -221,7 +203,6 @@ export default function TemaCard({ tema, recursos, index }: TemaCardProps) {
         </CardContent>
       </Card>
 
-      {/* Modal para mostrar el recurso seleccionado */}
       {selectedRecurso && (
         <RecursoModal
           recurso={selectedRecurso}
