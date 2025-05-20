@@ -96,12 +96,14 @@ export default function ChatbotGeneratorContent() {
   const [isPaused, setIsPaused] = useState(false)
   const [typingSpeed] = useState(5) // Aumentado de 3 a 5 para mayor velocidad
   const [shouldStartTyping, setShouldStartTyping] = useState(false)
+  const [hasCompletedTyping, setHasCompletedTyping] = useState(false)
 
   // Referencias para controlar la animación de escritura
   const contentRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null)
   const currentIndexRef = useRef<number>(0)
+  const animationCompleteRef = useRef<boolean>(false)
 
   const router = useRouter()
   const { toast } = useToast()
@@ -122,7 +124,8 @@ export default function ChatbotGeneratorContent() {
 
   // Función para manejar la animación de escritura
   const typeNextChunk = useCallback(() => {
-    if (!isTyping || isPaused || !generatedContent) return
+    // Si ya completamos la animación o está pausada, no hacer nada
+    if (!isTyping || isPaused || !generatedContent || animationCompleteRef.current) return
 
     if (currentIndexRef.current < generatedContent.length) {
       // Añadir entre 2-5 caracteres por vez para una escritura más rápida
@@ -135,11 +138,24 @@ export default function ChatbotGeneratorContent() {
 
       currentIndexRef.current = nextIndex
 
-      // Usar un delay variable para una escritura más natural
-      typingTimerRef.current = setTimeout(typeNextChunk, getTypingDelay())
+      // Verificar si hemos llegado al final
+      if (currentIndexRef.current >= generatedContent.length) {
+        // Marcar como completado para evitar reiniciar
+        animationCompleteRef.current = true
+        setHasCompletedTyping(true)
+        setIsTyping(false)
+        setIsPaused(false)
+        typingTimerRef.current = null
+      } else {
+        // Continuar la animación
+        typingTimerRef.current = setTimeout(typeNextChunk, getTypingDelay())
+      }
     } else {
+      // Asegurarnos de que todo esté correctamente marcado como completado
+      animationCompleteRef.current = true
+      setHasCompletedTyping(true)
       setIsTyping(false)
-      setIsPaused(false) // Resetear el estado de pausa al finalizar
+      setIsPaused(false)
       typingTimerRef.current = null
     }
   }, [isTyping, isPaused, generatedContent, typingSpeed])
@@ -200,14 +216,17 @@ export default function ChatbotGeneratorContent() {
       typingTimerRef.current = null
     }
 
+    // Resetear todos los estados relacionados con la animación
     setIsGenerating(true)
-    setIsTyping(false) // Importante: no activamos isTyping hasta que tengamos el contenido
+    setIsTyping(false)
     setShouldStartTyping(false)
     setIsPaused(false)
+    setHasCompletedTyping(false)
     setGeneratedContent("")
     setDisplayContent("")
     setFormattedContent("")
     currentIndexRef.current = 0
+    animationCompleteRef.current = false
 
     try {
       const user = getCurrentUser()
@@ -353,6 +372,13 @@ export default function ChatbotGeneratorContent() {
       typingTimerRef.current = null
     }
 
+    // Mostrar el contenido completo inmediatamente
+    setDisplayContent(generatedContent)
+    setFormattedContent(markdownToHtml(generatedContent))
+
+    // Marcar como completado
+    animationCompleteRef.current = true
+    setHasCompletedTyping(true)
     setIsGenerating(false)
     setIsTyping(false)
     setIsPaused(false)
@@ -360,8 +386,8 @@ export default function ChatbotGeneratorContent() {
 
     // Mostrar mensaje de cancelación
     toast({
-      title: "Generación cancelada",
-      description: "Se ha cancelado la generación del contenido.",
+      title: "Animación cancelada",
+      description: "Se ha mostrado el contenido completo.",
     })
   }
 
@@ -407,11 +433,12 @@ export default function ChatbotGeneratorContent() {
 
   // Efecto para iniciar la animación de escritura cuando shouldStartTyping cambia a true
   useEffect(() => {
-    if (shouldStartTyping && generatedContent && !isTyping && !isPaused) {
+    if (shouldStartTyping && generatedContent && !isTyping && !isPaused && !hasCompletedTyping) {
       currentIndexRef.current = 0
+      animationCompleteRef.current = false
       setIsTyping(true)
     }
-  }, [shouldStartTyping, generatedContent, isTyping, isPaused])
+  }, [shouldStartTyping, generatedContent, isTyping, isPaused, hasCompletedTyping])
 
   // Efecto para manejar la animación de escritura
   useEffect(() => {
@@ -421,8 +448,8 @@ export default function ChatbotGeneratorContent() {
       typingTimerRef.current = null
     }
 
-    // Solo iniciar la animación si isTyping es true
-    if (isTyping && !isPaused && generatedContent) {
+    // Solo iniciar la animación si isTyping es true y no hemos completado la animación
+    if (isTyping && !isPaused && generatedContent && !animationCompleteRef.current) {
       typeNextChunk()
     }
 

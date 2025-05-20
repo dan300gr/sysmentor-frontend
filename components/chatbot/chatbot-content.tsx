@@ -34,6 +34,22 @@ interface ChatSession {
   timestamp: Date
 }
 
+// Añadir estas interfaces después de las interfaces existentes
+interface SessionResponse {
+  session_id: string
+  titulo?: string
+  resumen?: string
+  fecha_ultima_actividad: string
+}
+
+interface MessageResponse {
+  id: string | number
+  matricula?: string
+  mensaje?: string
+  respuesta?: string
+  fecha: string
+}
+
 export default function ChatbotContent() {
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -97,6 +113,7 @@ export default function ChatbotContent() {
             if (currentLength < targetLength) {
               // Reducir la velocidad: usar 20 en lugar de 10 para una escritura más lenta
               // y añadir una pequeña variación aleatoria para que parezca más natural
+              // y añadir una pequeña variación aleatoria para que parezca más natural
               const divisor = 20 + Math.floor(Math.random() * 5)
               const charsToAdd = Math.max(1, Math.floor((targetLength - currentLength) / divisor))
               const newLength = Math.min(currentLength + charsToAdd, targetLength)
@@ -126,7 +143,7 @@ export default function ChatbotContent() {
         const sessionsData = await getUserConversations(user.matricula)
 
         if (sessionsData && Array.isArray(sessionsData)) {
-          const formattedSessions = sessionsData.map((session: any) => ({
+          const formattedSessions = sessionsData.map((session: SessionResponse) => ({
             id: session.session_id,
             title: session.titulo || "Conversación sin título",
             lastMessage: session.resumen || "Sin mensajes",
@@ -154,11 +171,11 @@ export default function ChatbotContent() {
       const response = await getConversationMessages(sessionId)
 
       if (response && response.mensajes) {
-        const loadedMessages = response.mensajes.map((msg: any) => ({
+        const loadedMessages = response.mensajes.map((msg: MessageResponse) => ({
           id: `msg-${msg.id}`,
           role: msg.matricula ? ("user" as const) : ("assistant" as const),
-          content: msg.matricula ? msg.mensaje : msg.respuesta,
-          displayContent: msg.matricula ? msg.mensaje : msg.respuesta, // Para mensajes cargados, mostrar todo de inmediato
+          content: msg.matricula ? msg.mensaje || "" : msg.respuesta || "",
+          displayContent: msg.matricula ? msg.mensaje || "" : msg.respuesta || "",
           timestamp: new Date(msg.fecha),
         }))
 
@@ -696,4 +713,3 @@ export default function ChatbotContent() {
     </div>
   )
 }
-
