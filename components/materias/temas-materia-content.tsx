@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Loader2, ArrowLeft, BookOpen, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -41,10 +41,6 @@ interface ProgresoRecurso {
   estado: EstadoProgresoType
 }
 
-// Clave para el almacenamiento en caché
-const getCacheKey = (materiaId: string) => `materia_data_${materiaId}`
-const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos en milisegundos
-
 export default function TemasMateriaContent() {
   const params = useParams()
   const materiaId = params?.id as string
@@ -54,8 +50,8 @@ export default function TemasMateriaContent() {
   const [recursos, setRecursos] = useState<Record<number, Recurso[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [progresos, setProgresos] = useState<Record<number, ProgresoRecurso>>({})
   const [progresoGeneral, setProgresoGeneral] = useState(0)
-  const [lastFetched, setLastFetched] = useState<number | null>(null)
 
   const router = useRouter()
   const { toast } = useToast()
@@ -79,66 +75,47 @@ export default function TemasMateriaContent() {
       return
     }
 
-    // Intentar cargar desde caché primero
-    const cachedData = localStorage.getItem(getCacheKey(materiaId))
-    if (cachedData) {
-      try {
-        const { data, timestamp } = JSON.parse(cachedData)
-        // Verificar si los datos en caché son recientes
-        if (Date.now() - timestamp < CACHE_DURATION) {
-          console.log("Cargando datos desde caché local")
-          setMateria(data.materia)
-          setTemas(data.temas)
-          setRecursos(data.recursos)
-          setLastFetched(timestamp)
-          setLoading(false)
-
-          // Cargar progresos actualizados en segundo plano
-          cargarProgresos()
-          return
-        }
-      } catch (e) {
-        console.error("Error al leer caché:", e)
-        // Si hay error al leer caché, continuamos con la carga normal
-      }
-    }
-
     // Cargar datos de la materia y sus temas
     fetchData()
   }, [materiaId, router, toast])
 
   // Cargar progresos de los recursos
-  const cargarProgresos = async () => {
-    try {
-      const todosProgresos = await obtenerTodosLosProgresos()
+  useEffect(() => {
+    const cargarProgresos = async () => {
+      try {
+        const todosProgresos = await obtenerTodosLosProgresos()
 
-      // Convertir array a objeto indexado por recurso_id
-      const progresosObj: Record<number, ProgresoRecurso> = {}
-      todosProgresos.forEach((progreso: ProgresoRecurso) => {
-        progresosObj[progreso.recurso_id] = progreso
-      })
+        // Convertir array a objeto indexado por recurso_id
+        const progresosObj: Record<number, ProgresoRecurso> = {}
+        todosProgresos.forEach((progreso) => {
+          progresosObj[progreso.recurso_id] = progreso
+        })
 
-      // Calcular progreso general
-      calcularProgresoGeneral(progresosObj)
-    } catch (error) {
-      console.error("Error al cargar progresos:", error)
+        setProgresos(progresosObj)
+
+        // Calcular progreso general
+        calcularProgresoGeneral(progresosObj)
+      } catch (error) {
+        console.error("Error al cargar progresos:", error)
+      }
     }
-  }
 
-  // Optimización: usar useMemo para evitar recálculos innecesarios
+    if (!loading && Object.keys(recursos).length > 0) {
+      cargarProgresos()
+    }
+  }, [loading, recursos])
+
   const fetchData = async () => {
     try {
       setLoading(true)
       const authClient = createAuthClient()
 
-      // Usar Promise.all para hacer solicitudes en paralelo
-      const [materiaResponse, temasResponse] = await Promise.all([
-        authClient.get(`/materias/${materiaId}`),
-        authClient.get(`/semanas-temas?materia_id=${materiaId}`),
-      ])
+      // Obtener información de la materia
+      const materiaResponse = await authClient.get(`/materias/${materiaId}`)
+      setMateria(materiaResponse.data)
 
-      const materiaData = materiaResponse.data
-      setMateria(materiaData)
+      // Obtener temas de la materia
+      const temasResponse = await authClient.get(`/semanas-temas?materia_id=${materiaId}`)
 
       // Ordenar temas por número de semana
       const temasOrdenados = temasResponse.data.sort(
@@ -146,50 +123,42 @@ export default function TemasMateriaContent() {
       )
       setTemas(temasOrdenados)
 
-      // Crear un array de IDs de temas para la solicitud de recursos
-      const temaIds = temasOrdenados.map((tema: SemanaTema) => tema.id)
-
-      // Obtener recursos para todos los temas en una sola solicitud
-      const recursosResponse = await authClient.get(`/recursos?semana_tema_ids=${temaIds.join(",")}`)
-      const todosRecursos: Recurso[] = recursosResponse.data
-
-      // Organizar recursos por tema_id
+      // Obtener recursos para cada tema
       const recursosPorTema: Record<number, Recurso[]> = {}
+
+      // Inicializar el objeto con arrays vacíos para cada tema
       temasOrdenados.forEach((tema: SemanaTema) => {
-        recursosPorTema[tema.id] = todosRecursos
-          .filter((recurso: Recurso) => recurso.semana_tema_id === tema.id)
-          .map((recurso: Recurso) => {
-            // Asegurarse de que cada recurso tenga un título
-            if (!recurso.titulo) {
-              return {
-                ...recurso,
-                titulo: `${recurso.tipo.charAt(0).toUpperCase() + recurso.tipo.slice(1)} - Semana ${tema.numero_semana}`,
-              }
-            }
-            return recurso
-          })
+        recursosPorTema[tema.id] = []
       })
+
+      // Obtener todos los recursos para esta materia
+      for (const tema of temasOrdenados) {
+        try {
+          const recursosResponse = await authClient.get(`/recursos?semana_tema_id=${tema.id}`)
+
+          // Si hay recursos, agregarlos al objeto
+          if (recursosResponse.data && Array.isArray(recursosResponse.data)) {
+            // Asegurarse de que cada recurso tenga un título
+            const recursosConTitulo = recursosResponse.data.map((recurso: Recurso) => {
+              if (!recurso.titulo) {
+                // Si no tiene título, crear uno basado en el tipo
+                return {
+                  ...recurso,
+                  titulo: `${recurso.tipo.charAt(0).toUpperCase() + recurso.tipo.slice(1)} - Semana ${tema.numero_semana}`,
+                }
+              }
+              return recurso
+            })
+
+            recursosPorTema[tema.id] = recursosConTitulo
+          }
+        } catch (err) {
+          console.error(`Error al cargar recursos para el tema ${tema.id}:`, err)
+        }
+      }
 
       setRecursos(recursosPorTema)
       setError(null)
-
-      // Guardar en caché
-      const timestamp = Date.now()
-      localStorage.setItem(
-        getCacheKey(materiaId),
-        JSON.stringify({
-          data: {
-            materia: materiaData,
-            temas: temasOrdenados,
-            recursos: recursosPorTema,
-          },
-          timestamp,
-        }),
-      )
-      setLastFetched(timestamp)
-
-      // Cargar progresos
-      cargarProgresos()
     } catch (err) {
       console.error("Error al cargar los datos:", err)
       setError("No se pudieron cargar los datos de la materia. Por favor, intenta de nuevo más tarde.")
@@ -240,15 +209,6 @@ export default function TemasMateriaContent() {
     router.back()
   }
 
-  // Memoizar el conteo de recursos totales para evitar recálculos en cada renderizado
-  const totalRecursos = useMemo(() => {
-    let total = 0
-    Object.values(recursos).forEach((temasRecursos) => {
-      total += temasRecursos.length
-    })
-    return total
-  }, [recursos])
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
@@ -292,6 +252,15 @@ export default function TemasMateriaContent() {
     )
   }
 
+  // Contar recursos totales
+  const contarRecursosTotales = () => {
+    let total = 0
+    Object.values(recursos).forEach((temasRecursos) => {
+      total += temasRecursos.length
+    })
+    return total
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Encabezado de la materia */}
@@ -321,15 +290,9 @@ export default function TemasMateriaContent() {
               <div className="h-2 w-full sm:w-48 bg-white/20 rounded-full overflow-hidden">
                 <div className="h-full bg-white rounded-full" style={{ width: `${progresoGeneral}%` }}></div>
               </div>
-              <div className="mt-1 text-xs text-blue-100">{totalRecursos} recursos disponibles</div>
+              <div className="mt-1 text-xs text-blue-100">{contarRecursosTotales()} recursos disponibles</div>
             </div>
           </div>
-
-          {lastFetched && (
-            <div className="mt-2 text-xs text-blue-100 opacity-70">
-              Última actualización: {new Date(lastFetched).toLocaleTimeString()}
-            </div>
-          )}
         </div>
       </div>
 
