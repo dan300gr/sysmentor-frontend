@@ -171,7 +171,7 @@ export default function TemarioContent() {
     <div className="max-w-4xl mx-auto">
       {/* Frase motivacional */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg mb-8 text-center shadow-sm border border-blue-100">
-        <p className="text-blue-800 text-lg italic font-medium">"{fraseMotivacional}"</p>
+        <p className="text-blue-800 text-lg italic font-medium">&quot;{fraseMotivacional}&quot;</p>
       </div>
 
       <div className="space-y-6">

@@ -1,14 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { createAuthClient } from "@/lib/auth"
 import { Loader2, FileText, Video, HelpCircle, CheckCircle, XCircle, Heart } from "lucide-react"
@@ -101,18 +94,15 @@ const VidasIndicator = ({ vidas }: { vidas: number }) => {
 
 // Componente para mostrar el estado de progreso
 const ProgresoIndicator = ({ estado }: { estado: EstadoProgresoType }) => {
-  let color = "bg-gray-200"
   let text = "No iniciado"
   let value = 0
 
   switch (estado) {
     case EstadoProgreso.EN_PROGRESO:
-      color = "bg-blue-500"
       text = "En progreso"
       value = 50
       break
     case EstadoProgreso.COMPLETADO:
-      color = "bg-green-500"
       text = "Completado"
       value = 100
       break
@@ -133,7 +123,6 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
   const [loading, setLoading] = useState(false)
   const [preguntas, setPreguntas] = useState<Pregunta[]>([])
   const [respuestasUsuario, setRespuestasUsuario] = useState<Record<number, number>>({})
-  const [mostrarResultados, setMostrarResultados] = useState(false)
   const [puntuacion, setPuntuacion] = useState({ correctas: 0, total: 0 })
   const [vidas, setVidas] = useState(5)
   const [preguntaActual, setPreguntaActual] = useState(0)
@@ -313,7 +302,6 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
 
           // Reiniciar estados
           setRespuestasUsuario({})
-          setMostrarResultados(false)
           setVidas(5)
           setPreguntaActual(0)
           setJuegoTerminado(false)
@@ -442,7 +430,6 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
   // Reiniciar cuestionario
   const reiniciarCuestionario = () => {
     setRespuestasUsuario({})
-    setMostrarResultados(false)
     setVidas(5)
     setPreguntaActual(0)
     setJuegoTerminado(false)
@@ -526,7 +513,6 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
                 <HelpCircle className="mr-2 h-5 w-5" />
                 <h3 className="text-lg font-medium">Cuestionario</h3>
               </div>
-              
             </div>
 
             <div className="mb-4">
@@ -687,7 +673,6 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">{recurso.titulo}</DialogTitle>
-
         </DialogHeader>
 
         <div className="mt-4">{renderContenido()}</div>
@@ -701,4 +686,5 @@ export default function RecursoModal({ recurso, isOpen, onClose, onProgresoActua
     </Dialog>
   )
 }
+
 

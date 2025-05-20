@@ -50,7 +50,6 @@ export default function TemasMateriaContent() {
   const [recursos, setRecursos] = useState<Record<number, Recurso[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [progresos, setProgresos] = useState<Record<number, ProgresoRecurso>>({})
   const [progresoGeneral, setProgresoGeneral] = useState(0)
 
   const router = useRouter()
@@ -91,9 +90,7 @@ export default function TemasMateriaContent() {
           progresosObj[progreso.recurso_id] = progreso
         })
 
-        setProgresos(progresosObj)
-
-        // Calcular progreso general
+        // Calcular progreso general directamente
         calcularProgresoGeneral(progresosObj)
       } catch (error) {
         console.error("Error al cargar progresos:", error)
