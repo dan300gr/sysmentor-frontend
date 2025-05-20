@@ -21,6 +21,7 @@ interface Materia {
 interface SemestreAccordionProps {
   semestre: Semestre
   materias: Materia[]
+  semestreNumero: number
 }
 
 // Función para determinar el icono de la materia basado en su nombre
@@ -51,14 +52,14 @@ const getMateriaIcon = (nombre: string) => {
 }
 
 // Colores para los semestres según su número
-const getSemestreColor = () => {
+const getSemestreColor = (numero: number) => {
   // Usar un solo color para todos los semestres por estética y seriedad
   return "from-blue-600 to-blue-700"
 }
 
-export default function SemestreAccordion({ semestre, materias }: SemestreAccordionProps) {
+export default function SemestreAccordion({ semestre, materias, semestreNumero }: SemestreAccordionProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const bgGradient = getSemestreColor()
+  const bgGradient = getSemestreColor(semestreNumero)
   const router = useRouter()
 
   // Función para navegar a la página de temas de la materia
